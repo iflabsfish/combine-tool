@@ -5,6 +5,7 @@ const rpcUrl = process.env.RPC_URL;
 const output = process.env.OUTPUT;
 const account = process.env.ACCOUNT;
 const batchSize = parseInt(process.env.BATCH_SIZE || '1');
+const dryRun = process.env.DRY_RUN === 'true';
 
 if (!rpcUrl) {
     console.error('Specify `RPC_URL` environment variable pointing to Http RPC endpoint of IronFish node');
@@ -24,6 +25,12 @@ if (!account) {
 if (!batchSize) {
     console.error('Specify `BATCH_SIZE` environment variable with batch size');
     process.exit(4);
+}
+
+function formatYMDHMS(d: Date) {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+        `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 async function main(rpcUrl: string, output: string, account: string, batchSize: number) {
@@ -60,6 +67,11 @@ async function main(rpcUrl: string, output: string, account: string, batchSize: 
             totalAmount += BigInt(note.value);
             if (processedNotes % 300 === 0) {
                 console.log(`Creating transaction for account ${account} with ${notesToUse.length} notes`);
+                if (dryRun) {
+                    notesToUse = [];
+                    totalAmount = 0n;
+                    continue;
+                }
                 const params: CreateTransactionRequest = {
                     account,
                     outputs: [
@@ -80,7 +92,7 @@ async function main(rpcUrl: string, output: string, account: string, batchSize: 
                 const transaction = new Transaction(bytes);
                 const hash = transaction.hash().toString('hex');
                 await file.appendFile(
-                    `${Date.now()},${hash},${notesToUse.length}\n`,
+                    `${formatYMDHMS(new Date())},${hash},${notesToUse.length}\n`,
                 );
                 notesToUse = [];
                 totalAmount = 0n;
